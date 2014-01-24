@@ -26,6 +26,7 @@ var indexFinished = false
 var minSubstrLen = 4
 
 var debug = false
+var debugQueries = true
 
 func RoutesToStrings(routes []Route) []string {
   strs := make([]string, len(routes))
@@ -176,7 +177,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
-  fmt.Printf("Indexed?: %t", indexFinished)
+  if debug { fmt.Printf("Indexed?: %t", indexFinished) }
   fmt.Fprintf(w, `{"success": "%t"}`, indexFinished)
 }
 
@@ -201,7 +202,10 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
     response = response + strings.Join(results, `","`) + `"]}`
   }
 
-  if debug { fmt.Println(response) }
+  if debugQueries { 
+    fmt.Println(q)
+    fmt.Println(response)
+  }
   fmt.Fprintf(w, response)
 }
 
