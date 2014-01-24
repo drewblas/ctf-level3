@@ -26,7 +26,7 @@ var indexFinished = false
 var minSubstrLen = 4
 
 var debug = false
-var debugQueries = true
+var debugQueries = false
 
 func RoutesToStrings(routes []Route) []string {
   strs := make([]string, len(routes))
@@ -197,12 +197,13 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 
   if len(results) == 0 {
     response = `{"success": true,"results":[]}`
+    fmt.Println("No results is probably not good!!!!!")
   }else{
     response = `{"success": true,"results":["`
     response = response + strings.Join(results, `","`) + `"]}`
   }
 
-  if debugQueries { 
+  if debugQueries {
     fmt.Println(q)
     fmt.Println(response)
   }
@@ -210,19 +211,18 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadDictionary() {
-  matches, _ := filepath.Glob("test/data/words*")
+  // matches, _ := filepath.Glob("test/data/words*")
 
-  if matches != nil {
-    file, _ := os.Open(matches[0])
-  
-    defer file.Close()
+  file, _ := os.Open("./words")
 
-    lineScanner := bufio.NewScanner(file)
-  
-    for lineScanner.Scan() {
-      dictionary[lineScanner.Text()] = true
-    }
+  defer file.Close()
+
+  lineScanner := bufio.NewScanner(file)
+
+  for lineScanner.Scan() {
+    dictionary[lineScanner.Text()] = true
   }
+
   if debug { fmt.Println("Dictionary Loaded") } 
 }
 
