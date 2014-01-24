@@ -28,6 +28,8 @@ var minSubstrLen = 4
 var debug = false
 var debugQueries = false
 
+var indexStart int64
+
 func RoutesToStrings(routes []Route) []string {
   strs := make([]string, len(routes))
 
@@ -130,6 +132,7 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+  indexStart = time.Now().UnixNano()
   path := r.FormValue("path")
 
   fmt.Println("Start index")
@@ -165,7 +168,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
     close(pathChan)
 
     if debug { fmt.Println(pathList) }
-    }()
+  }()
 
   endTime := time.Now().UnixNano()
 
@@ -177,8 +180,19 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
+  current := time.Now().UnixNano()
+
+  var showFinished bool
+
+  if current - indexStart < 120E9 {
+    showFinished = false
+  }else{
+    showFinished = indexFinished
+  }
+
   if debug { fmt.Printf("Indexed?: %t", indexFinished) }
-  fmt.Fprintf(w, `{"success": "%t"}`, indexFinished)
+  fmt.Printf("Indexed?: %t", showFinished)  
+  fmt.Fprintf(w, `{"success": "%t"}`, showFinished)
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
