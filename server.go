@@ -11,25 +11,16 @@ import (
   "time"
 )
 
-type IndexValue struct {
-    Substr, Location string
-}
-
 var indexMap map[string][]string
 var pathList []string
+var indexFinished = false
 
 var minSubstrLen = 3
 
 var debug = false
 
-type QueryResponse struct {
-    Success string
-    Body string
-    Time int64
-}
-
 ///////////// INDEXING STUFF
-func importFile(path string, c chan IndexValue) error {
+func importFile(path string, c chan string) error {
   file, err := os.Open(path)
   if err != nil {
     return err
@@ -73,7 +64,20 @@ func importFile(path string, c chan IndexValue) error {
     }
   }
 
+  c <- path
+
   return nil
+}
+
+func monitorStatus(c chan string) {
+  for i := 0; i < len(pathList); i++ {
+    path := <- c
+    if path == "foo" {
+      fmt.Println("foobar")
+    }
+  }
+
+  indexFinished = true
 }
 
 //////////// QUERY STUFF
@@ -89,21 +93,25 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   os.Chdir(path)
 
-  c := make(chan IndexValue)
-
-  // go storeIndexes(c)
+  c := make(chan string)
 
   startTime := time.Now().UnixNano()
 
+  // Just generate the path list because we want to know the number of paths before we start the monitor
   filepath.Walk("./", func(path string, _ os.FileInfo, _ error) error {
-    if debug {
-      fmt.Println("Visit ", path)
-    }
     pathList = append(pathList, path)
-    importFile(path, c)
 
     return nil
   })
+
+  go monitorStatus(c)
+
+  for _, path := range pathList {
+    if debug {
+      fmt.Println("Visit ", path)
+    }
+    go importFile(path, c)
+  }
 
   if debug { fmt.Println(pathList) }
 
@@ -117,7 +125,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
-  fmt.Fprintf(w, `{"success": "true"}`)
+  fmt.Fprintf(w, `{"success": "%t"}`, indexFinished)
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
