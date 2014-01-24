@@ -8,6 +8,7 @@ import (
   // "encoding/json"
   "path/filepath"
   "strings"
+  "time"
 )
 
 type IndexValue struct {
@@ -84,11 +85,15 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 func indexHandler(w http.ResponseWriter, r *http.Request) {
   path := r.FormValue("path")
 
+  fmt.Println("Start index")
+
   os.Chdir(path)
 
   c := make(chan IndexValue)
 
   // go storeIndexes(c)
+
+  startTime := time.Now().UnixNano()
 
   filepath.Walk("./", func(path string, _ os.FileInfo, _ error) error {
     if debug {
@@ -101,6 +106,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
   })
 
   if debug { fmt.Println(pathList) }
+
+  endTime := time.Now().UnixNano()
+
+  elapsed := float32(endTime-startTime)/1E6
+
+  fmt.Println("Index complete. ElapsedTime in ms: ", elapsed )
 
   fmt.Fprintf(w, `{"success": "true"}`)
 }
