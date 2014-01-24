@@ -192,7 +192,7 @@ func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
 
   if debug { fmt.Printf("Indexed?: %t", indexFinished) }
   fmt.Printf("Indexed?: %t", showFinished)  
-  fmt.Fprintf(w, `{"success": "%t"}`, showFinished)
+  fmt.Fprintf(w, `{"success": %t}`, showFinished)
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
