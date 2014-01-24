@@ -9,6 +9,7 @@ import (
   "path/filepath"
   "strings"
   "time"
+  "sort"
 )
 
 type Route struct {
@@ -22,7 +23,7 @@ var indexMap map[string][]Route
 var pathList []string
 var indexFinished = false
 
-var minSubstrLen = 5
+var minSubstrLen = 4
 
 var debug = false
 
@@ -102,6 +103,26 @@ func monitorStatus(c chan string) {
 }
 
 //////////// QUERY STUFF
+func dedup(data []string ) []string {
+  sort.Strings(data)
+
+  length := len(data) - 1
+
+  for i := 0; i < length; i++ {
+    for j := i + 1; j <= length; j++ {
+      if (data[i] == data[j]) {
+        data[j] = data[length]
+        data = data[0:length]
+        length--
+        j--
+      }
+    }
+  }
+
+  return data
+}
+
+//////////// Handlers
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
   fmt.Fprintf(w, `{"success": "true"}`)
@@ -168,7 +189,7 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("ERROR TOO SMALL")
     results = []string{}
   }else{
-    results = RoutesToStrings(indexMap[q])
+    results = dedup( RoutesToStrings(indexMap[q]) )
   }
 
   var response string
