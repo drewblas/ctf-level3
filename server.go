@@ -17,9 +17,9 @@ type IndexValue struct {
 var indexMap map[string][]string
 var pathList []string
 
-var minSubstrLen = 4
+var minSubstrLen = 3
 
-var debug = true
+var debug = false
 
 type QueryResponse struct {
     Success string
@@ -43,7 +43,8 @@ func importFile(path string, c chan IndexValue) error {
     lineNum += 1
     route = fmt.Sprintf("%s:%d", path, lineNum)
 
-    r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
+    // r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
+    r := strings.NewReader( lineScanner.Text() )
     
     wordScanner := bufio.NewScanner( r )
     wordScanner.Split(bufio.ScanWords)
@@ -72,12 +73,6 @@ func importFile(path string, c chan IndexValue) error {
   }
 
   return nil
-}
-
-func storeIndexes(c chan IndexValue) {
-  // for ival := range c {
-
-  // }
 }
 
 //////////// QUERY STUFF
@@ -115,7 +110,8 @@ func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
-  q := strings.ToLower( r.FormValue("q") )
+  // q := strings.ToLower( r.FormValue("q") )
+  q := r.FormValue("q")
   var results []string
 
   if len(q) < minSubstrLen {
@@ -134,7 +130,7 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
     response = response + strings.Join(results, `","`) + `"]}`
   }
 
-  fmt.Println(response)
+  if debug { fmt.Println(response) }
   fmt.Fprintf(w, response)
 }
 
