@@ -11,16 +11,41 @@ import (
   "time"
 )
 
-var indexMap map[string][]string
+type Route struct {
+    PathIndex int
+    Line  int
+}
+
+var dictionary map[string]bool
+
+var indexMap map[string][]Route
 var pathList []string
 var indexFinished = false
 
-var minSubstrLen = 3
+var minSubstrLen = 5
 
 var debug = false
 
+func RoutesToStrings(routes []Route) []string {
+  strs := make([]string, len(routes))
+
+  for i, r := range routes {
+    strs[i] = fmt.Sprintf("%s:%d", pathList[r.PathIndex], r.Line)
+  }
+
+  return strs
+}
+
 ///////////// INDEXING STUFF
-func importFile(path string, c chan string) error {
+func importWorker(workerNum int, pathChan chan int, statusChan chan string) {
+  for i := range pathChan {
+    importFile(i, statusChan)
+  }
+}
+
+func importFile(pathIndex int, c chan string) error {
+  path := pathList[pathIndex]
+
   file, err := os.Open(path)
   if err != nil {
     return err
@@ -29,11 +54,9 @@ func importFile(path string, c chan string) error {
 
   lineScanner := bufio.NewScanner(file)
   var lineNum = 0
-  var route = ""
 
   for lineScanner.Scan() {
     lineNum += 1
-    route = fmt.Sprintf("%s:%d", path, lineNum)
 
     // r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
     r := strings.NewReader( lineScanner.Text() )
@@ -49,16 +72,14 @@ func importFile(path string, c chan string) error {
         for i := 0; i <= len(str) - substrLen; i++ {
           substr := str[i:i+substrLen]
 
-          // if debug {
-          //   fmt.Println("Indexing ", , " - ", route)
-          // }
+          if dictionary[substr] {
+            // if debug {
+            //   fmt.Println("Indexing ", , " - ", route)
+            // }
 
-          list, _ := indexMap[substr]
-          // if present {
-            // indexMap[substr] = []string{route}
-          // }else{
-            indexMap[substr] = append(list, route)
-          // }
+            list, _ := indexMap[substr]
+            indexMap[substr] = append(list, Route{pathIndex, lineNum})
+          }
         }
       }
     }
@@ -93,7 +114,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   os.Chdir(path)
 
-  c := make(chan string)
+  statusChan := make(chan string)
+  pathChan := make(chan int)
 
   startTime := time.Now().UnixNano()
 
@@ -104,27 +126,36 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
     return nil
   })
 
-  go monitorStatus(c)
-
-  for _, path := range pathList {
-    if debug {
-      fmt.Println("Visit ", path)
-    }
-    go importFile(path, c)
+  go monitorStatus(statusChan)
+  for numWorkers := 0; numWorkers < 6; numWorkers++ {
+    go importWorker(numWorkers, pathChan, statusChan)
   }
 
-  if debug { fmt.Println(pathList) }
+  go func () {
+    for i, _ := range pathList {
+      if debug {
+        // fmt.Println(i, "/", len(pathList), " Visit ", path)
+        fmt.Printf("%d ..", i)
+      }
+      pathChan <- i
+    }
+
+    close(pathChan)
+
+    if debug { fmt.Println(pathList) }
+    }()
 
   endTime := time.Now().UnixNano()
 
   elapsed := float32(endTime-startTime)/1E6
 
-  fmt.Println("Index complete. ElapsedTime in ms: ", elapsed )
+  if debug { fmt.Println("Index API call complete. (but indexing is still happening in the background) ElapsedTime in ms: ", elapsed ) }
 
   fmt.Fprintf(w, `{"success": "true"}`)
 }
 
 func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
+  fmt.Printf("Indexed?: %t", indexFinished)
   fmt.Fprintf(w, `{"success": "%t"}`, indexFinished)
 }
 
@@ -137,7 +168,7 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("ERROR TOO SMALL")
     results = []string{}
   }else{
-    results = indexMap[q]
+    results = RoutesToStrings(indexMap[q])
   }
 
   var response string
@@ -153,6 +184,23 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
   fmt.Fprintf(w, response)
 }
 
+func loadDictionary() {
+  matches, _ := filepath.Glob("test/data/words*")
+
+  if matches != nil {
+    file, _ := os.Open(matches[0])
+  
+    defer file.Close()
+
+    lineScanner := bufio.NewScanner(file)
+  
+    for lineScanner.Scan() {
+      dictionary[lineScanner.Text()] = true
+    }
+  }
+  if debug { fmt.Println("Dictionary Loaded") } 
+}
+
 func main() {
   // m := map[string]string{
   //   "foo": "bar",
@@ -163,7 +211,10 @@ func main() {
   // fmt.Println(string(j))
 
   pathList = []string{}
-  indexMap = make(map[string][]string)
+  indexMap = make(map[string][]Route)
+  dictionary = make(map[string]bool)
+
+  loadDictionary()
 
   http.HandleFunc("/healthcheck", healthCheckHandler)
   http.HandleFunc("/index", indexHandler)
