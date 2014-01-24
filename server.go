@@ -7,35 +7,77 @@ import (
   "net/http"
   // "encoding/json"
   "path/filepath"
+  "strings"
 )
 
+type IndexValue struct {
+    Substr, Location string
+}
+
 var indexMap map[string][]string
+var pathList []string
+
+var minSubstrLen = 4
+
+var debug = true
+
+type QueryResponse struct {
+    Success string
+    Body string
+    Time int64
+}
 
 ///////////// INDEXING STUFF
-
-func visit(path string, f os.FileInfo, err error) error {
-  fmt.Printf("Visited: %s\n", path)
-  return nil
-} 
-
-// readLines reads a whole file into memory
-// and returns a slice of its lines.
-func importFile(path string) ([]string, error) {
+func importFile(path string, c chan IndexValue) error {
   file, err := os.Open(path)
   if err != nil {
-    return nil, err
+    return err
   }
   defer file.Close()
 
-  scanner := bufio.NewScanner(file)
-  var lineNum = 1
+  lineScanner := bufio.NewScanner(file)
+  var lineNum = 0
+  var route = ""
 
-  for scanner.Scan() {
+  for lineScanner.Scan() {
     lineNum += 1
-    lines = append(lines, scanner.Text())
+    route = fmt.Sprintf("%s:%d", path, lineNum)
+
+    r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
+    
+    wordScanner := bufio.NewScanner( r )
+    wordScanner.Split(bufio.ScanWords)
+
+    for wordScanner.Scan() {
+      str := wordScanner.Text()
+
+      // for all substrings
+      for substrLen := minSubstrLen; substrLen <= len(str); substrLen++ {
+        for i := 0; i <= len(str) - substrLen; i++ {
+          substr := str[i:i+substrLen]
+
+          // if debug {
+          //   fmt.Println("Indexing ", , " - ", route)
+          // }
+
+          list, _ := indexMap[substr]
+          // if present {
+            // indexMap[substr] = []string{route}
+          // }else{
+            indexMap[substr] = append(list, route)
+          // }
+        }
+      }
+    }
   }
 
-  return lines, scanner.Err()
+  return nil
+}
+
+func storeIndexes(c chan IndexValue) {
+  // for ival := range c {
+
+  // }
 }
 
 //////////// QUERY STUFF
@@ -49,7 +91,21 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   os.Chdir(path)
 
-  filepath.Walk("./", visit)
+  c := make(chan IndexValue)
+
+  // go storeIndexes(c)
+
+  filepath.Walk("./", func(path string, _ os.FileInfo, _ error) error {
+    if debug {
+      fmt.Println("Visit ", path)
+    }
+    pathList = append(pathList, path)
+    importFile(path, c)
+
+    return nil
+  })
+
+  if debug { fmt.Println(pathList) }
 
   fmt.Fprintf(w, `{"success": "true"}`)
 }
@@ -59,9 +115,27 @@ func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
-  
+  q := strings.ToLower( r.FormValue("q") )
+  var results []string
 
-  // j, err := json.Marshal(m)
+  if len(q) < minSubstrLen {
+    fmt.Println("ERROR TOO SMALL")
+    results = []string{}
+  }else{
+    results = indexMap[q]
+  }
+
+  var response string
+
+  if len(results) == 0 {
+    response = `{"success": true,"results":[]}`
+  }else{
+    response = `{"success": true,"results":["`
+    response = response + strings.Join(results, `","`) + `"]}`
+  }
+
+  fmt.Println(response)
+  fmt.Fprintf(w, response)
 }
 
 func main() {
@@ -73,9 +147,14 @@ func main() {
 
   // fmt.Println(string(j))
 
+  pathList = []string{}
+  indexMap = make(map[string][]string)
+
   http.HandleFunc("/healthcheck", healthCheckHandler)
   http.HandleFunc("/index", indexHandler)
   http.HandleFunc("/isIndexed", isIndexedHandler)
   http.HandleFunc("/", queryHandler)
+
+  fmt.Println("Ready to serve")
   http.ListenAndServe(":9090", nil)
 }
