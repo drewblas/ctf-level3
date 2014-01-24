@@ -223,6 +223,8 @@ func loadDictionary() {
     dictionary[lineScanner.Text()] = true
   }
 
+  fmt.Println("Dictionary Size: ", len(dictionary))
+
   if debug { fmt.Println("Dictionary Loaded") } 
 }
 
