@@ -152,16 +152,16 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
   })
 
   go monitorStatus(statusChan)
-  for numWorkers := 0; numWorkers < 6; numWorkers++ {
+  for numWorkers := 0; numWorkers < 1; numWorkers++ {
     go importWorker(numWorkers, pathChan, statusChan)
   }
 
   go func () {
     for i, _ := range pathList {
-      if debug {
+      // if debug {
         // fmt.Println(i, "/", len(pathList), " Visit ", path)
         fmt.Printf("%d ..", i)
-      }
+      // }
       pathChan <- i
     }
 
@@ -180,18 +180,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
-  current := time.Now().UnixNano()
+  showFinished := indexFinished
 
-  var showFinished bool
-
-  if current - indexStart < 120E9 {
-    showFinished = false
-  }else{
-    showFinished = indexFinished
-  }
+  // current := time.Now().UnixNano()
+  // if current - indexStart < 120E9 {
+  //   showFinished = false
+  // }
 
   if debug { fmt.Printf("Indexed?: %t", indexFinished) }
-  fmt.Printf("Indexed?: %t", showFinished)  
   fmt.Fprintf(w, `{"success": %t}`, showFinished)
 }
 
