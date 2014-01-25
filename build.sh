@@ -6,5 +6,6 @@ set -e
 cd "$(dirname "$0")"
 
 go build server.go
+go build master.go
 
 exit $?

@@ -10,6 +10,7 @@ import (
   "strings"
   "time"
   "sort"
+  "strconv"
 )
 
 type Ingest struct {
@@ -29,12 +30,19 @@ var pathList []string
 var lineRecord map[int]map[int]string
 var indexFinished = false
 
-var minSubstrLen = 20
+var minSubstrLen = 10
 
 var debug = false
 var debugQueries = false
 
 var indexStart int64
+
+var slaveId int
+var numSlaves = 3
+
+func shouldIndex(idx int) bool {
+  return (idx % numSlaves) + 1 == slaveId  // slaveId starts at 1
+}
 
 func RoutesToStrings(routes []Route) []string {
   strs := make([]string, len(routes))
@@ -74,7 +82,7 @@ func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) e
 
     // r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
     r := strings.NewReader( lineScanner.Text() )
-    
+
     wordScanner := bufio.NewScanner( r )
     wordScanner.Split(bufio.ScanWords)
 
@@ -184,9 +192,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   startTime := time.Now().UnixNano()
 
+
+  idx := 0
   // Just generate the path list because we want to know the number of paths before we start the monitor
   filepath.Walk("./", func(path string, _ os.FileInfo, _ error) error {
-    pathList = append(pathList, path)
+    if shouldIndex(idx) {
+      pathList = append(pathList, path)
+    }
+    idx += 1
 
     return nil
   })
@@ -241,24 +254,26 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
   var results []string
 
   if len(q) < minSubstrLen {
-    fmt.Println("ERROR TOO SMALL")
+    // fmt.Println("ERROR TOO SMALL")
     results = searchManual(q)
   }else{
     idx,ok := dictionary[q]
 
     if ok {
-      results = dedup( RoutesToStrings(indexMap[idx]) )
+      results = RoutesToStrings(indexMap[idx])
     }
   }
 
   var response string
 
   if len(results) == 0 {
-    response = `{"success": true,"results":[]}`
-    fmt.Println("No results is probably not good!!!!!")
+    // response = `{"success": true,"results":[]}`
+    response = ""
+    // fmt.Println("No results is probably not good!!!!!")
   }else{
-    response = `{"success": true,"results":["`
-    response = response + strings.Join(results, `","`) + `"]}`
+    // response = `{"success": true,"results":["`
+    // response = response + strings.Join(results, `","`) + `"]}`
+    response = strings.Join(results,",")
   }
 
   if debugQueries {
@@ -288,7 +303,7 @@ func loadDictionary() {
 
   fmt.Println("Dictionary Size: ", len(dictionary))
 
-  if debug { fmt.Println("Dictionary Loaded") } 
+  if debug { fmt.Println("Dictionary Loaded") }
 }
 
 func main() {
@@ -299,6 +314,15 @@ func main() {
   // j, _ := json.Marshal(m)
 
   // fmt.Println(string(j))
+
+  if len(os.Args) != 2 {
+    fmt.Println("Error: Wrong args")
+    os.Exit(1)
+  }
+  port := ":909" + os.Args[1]
+
+  slaveId, _ = strconv.Atoi(os.Args[1])
+
 
   pathList = []string{}
   indexMap = make(map[int][]Route)
@@ -312,6 +336,6 @@ func main() {
   http.HandleFunc("/isIndexed", isIndexedHandler)
   http.HandleFunc("/", queryHandler)
 
-  fmt.Println("Ready to serve")
-  http.ListenAndServe(":9090", nil)
+  fmt.Println("Ready to serve: ", port)
+  http.ListenAndServe(port, nil)
 }

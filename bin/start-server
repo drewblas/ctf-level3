@@ -2,13 +2,15 @@
 
 set -eu
 
+master_path="$(dirname "$0")/../master"
 server_path="$(dirname "$0")/../server"
 
 if [ "$1" = "--master" ]; then
-  echo "$0: Running..."
+  echo "$0: Running master..."
   set -x
-  exec "$server_path"
+  exec "$master_path"
 else
-  echo "$0: Ignoring non-master"
-  exit 0
+  echo "$0: Running slave $2"
+  set -x
+  exec "$server_path" "$2"
 fi
