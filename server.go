@@ -12,6 +12,11 @@ import (
   "sort"
 )
 
+type Ingest struct {
+    Substr string
+    Routes []Route
+}
+
 type Route struct {
     PathIndex int
     Line  int
@@ -41,13 +46,13 @@ func RoutesToStrings(routes []Route) []string {
 }
 
 ///////////// INDEXING STUFF
-func importWorker(workerNum int, pathChan chan int, statusChan chan string) {
+func importWorker(workerNum int, pathChan chan int, statusChan chan string, ingestChan chan Ingest) {
   for i := range pathChan {
-    importFile(i, statusChan)
+    importFile(i, statusChan, ingestChan)
   }
 }
 
-func importFile(pathIndex int, c chan string) error {
+func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) error {
   path := pathList[pathIndex]
 
   file, err := os.Open(path)
@@ -82,16 +87,22 @@ func importFile(pathIndex int, c chan string) error {
             // }
 
             list, _ := indexMap[substr]
-            indexMap[substr] = append(list, Route{pathIndex, lineNum})
+            ingestChan <- Ingest{substr, append(list, Route{pathIndex, lineNum})}
           }
         }
       }
     }
   }
 
-  c <- path
+  statusChan <- path
 
   return nil
+}
+
+func ingestRoutes(ingestChan chan Ingest) {
+  for i := range ingestChan {
+    indexMap[i.Substr] = i.Routes
+  }
 }
 
 func monitorStatus(c chan string) {
@@ -141,6 +152,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   statusChan := make(chan string)
   pathChan := make(chan int)
+  ingestChan := make(chan Ingest)
 
   startTime := time.Now().UnixNano()
 
@@ -151,9 +163,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
     return nil
   })
 
+  fmt.Println("##",len(pathList),"##")
+
   go monitorStatus(statusChan)
-  for numWorkers := 0; numWorkers < 1; numWorkers++ {
-    go importWorker(numWorkers, pathChan, statusChan)
+  go ingestRoutes(ingestChan)
+  for numWorkers := 0; numWorkers < 6; numWorkers++ {
+    go importWorker(numWorkers, pathChan, statusChan, ingestChan)
   }
 
   go func () {
