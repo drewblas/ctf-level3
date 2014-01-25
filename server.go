@@ -13,7 +13,7 @@ import (
 )
 
 type Ingest struct {
-    Substr string
+    SubstrIndex int
     Routes []Route
 }
 
@@ -22,9 +22,9 @@ type Route struct {
     Line  int
 }
 
-var dictionary map[string]bool
+var dictionary map[string]int
 
-var indexMap map[string][]Route
+var indexMap map[int][]Route
 var pathList []string
 var indexFinished = false
 
@@ -81,13 +81,13 @@ func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) e
         for i := 0; i <= len(str) - substrLen; i++ {
           substr := str[i:i+substrLen]
 
-          if dictionary[substr] {
+          if idx,ok := dictionary[substr]; ok {
             // if debug {
             //   fmt.Println("Indexing ", , " - ", route)
             // }
 
-            list, _ := indexMap[substr]
-            ingestChan <- Ingest{substr, append(list, Route{pathIndex, lineNum})}
+            list, _ := indexMap[idx]
+            ingestChan <- Ingest{idx, append(list, Route{pathIndex, lineNum})}
           }
         }
       }
@@ -99,9 +99,10 @@ func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) e
   return nil
 }
 
+// Handles a synchronized writing of route data
 func ingestRoutes(ingestChan chan Ingest) {
   for i := range ingestChan {
-    indexMap[i.Substr] = i.Routes
+    indexMap[i.SubstrIndex] = i.Routes
   }
 }
 
@@ -197,7 +198,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
   go monitorStatus(statusChan)
   go ingestRoutes(ingestChan)
-  for numWorkers := 0; numWorkers < 6; numWorkers++ {
+  for numWorkers := 0; numWorkers < 4; numWorkers++ {
     go importWorker(numWorkers, pathChan, statusChan, ingestChan)
   }
 
@@ -246,7 +247,11 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("ERROR TOO SMALL")
     results = searchManual(q)
   }else{
-    results = dedup( RoutesToStrings(indexMap[q]) )
+    idx,ok := dictionary[q]
+
+    if ok {
+      results = dedup( RoutesToStrings(indexMap[idx]) )
+    }
   }
 
   var response string
@@ -275,8 +280,13 @@ func loadDictionary() {
 
   lineScanner := bufio.NewScanner(file)
 
+  lineNum := 0
+
   for lineScanner.Scan() {
-    dictionary[lineScanner.Text()] = true
+    lineNum += 1
+    // if len(lineScanner.Text()) >= minSubstrLen {
+      dictionary[lineScanner.Text()] = lineNum
+    // }
   }
 
   fmt.Println("Dictionary Size: ", len(dictionary))
@@ -294,8 +304,8 @@ func main() {
   // fmt.Println(string(j))
 
   pathList = []string{}
-  indexMap = make(map[string][]Route)
-  dictionary = make(map[string]bool)
+  indexMap = make(map[int][]Route)
+  dictionary = make(map[string]int)
 
   loadDictionary()
 
