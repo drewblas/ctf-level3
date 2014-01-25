@@ -106,6 +106,8 @@ func ingestRoutes(ingestChan chan Ingest) {
 }
 
 func monitorStatus(c chan string) {
+  startTime := time.Now().UnixNano()
+
   for i := 0; i < len(pathList); i++ {
     path := <- c
     if path == "foo" {
@@ -114,6 +116,12 @@ func monitorStatus(c chan string) {
   }
 
   indexFinished = true
+
+  endTime := time.Now().UnixNano()
+
+  elapsed := float32(endTime-startTime)/1E6
+
+  fmt.Println("Monitor index finished. ElapsedTime in ms: ", elapsed )
 }
 
 //////////// QUERY STUFF
@@ -134,6 +142,28 @@ func dedup(data []string ) []string {
   }
 
   return data
+}
+
+func searchManual(q string) []string {
+  results := []string{}
+
+  for _, path := range(pathList) {
+    file, _ := os.Open(path)
+    defer file.Close()
+
+    lineScanner := bufio.NewScanner(file)
+    var lineNum = 0
+
+    for lineScanner.Scan() {
+      lineNum += 1
+
+      if strings.Contains(lineScanner.Text(), q) {
+        results = append(results, fmt.Sprintf("%s:%d", path, lineNum))
+      }
+    }
+  }
+
+  return results
 }
 
 //////////// Handlers
@@ -213,15 +243,7 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 
   if len(q) < minSubstrLen {
     fmt.Println("ERROR TOO SMALL")
-    results = []string{}
-
-    for i := 97; i < 123; i++ {
-      fmt.Println("Comibing to ", q + string(i))
-      results = append(results, RoutesToStrings(indexMap[q + string(i)])... )
-    }
-
-    results = dedup( results )
-
+    results = searchManual(q)
   }else{
     results = dedup( RoutesToStrings(indexMap[q]) )
   }
