@@ -113,13 +113,13 @@ class Runner(test_framework.AbstractRunner):
 
         util.logger.info('Waiting for server to come up')
 
-        self.check_server(self.uri('/healthcheck'), 'starts', 3)
+        self.check_server(self.uri('/healthcheck'), 'starts', 8)
 
         util.logger.info('Indexing %s', path)
         self.index(path)
 
         util.logger.info('Waiting for servers to finish indexing')
-        self.check_server(self.uri('/isIndexed'), 'indexes', 8)
+        self.check_server(self.uri('/isIndexed'), 'indexes', 16)
 
         responses = []
 
@@ -129,7 +129,7 @@ class Runner(test_framework.AbstractRunner):
             body, code = self.execute_query(key)
             try:
                 parsed = util.json.loads(body)
-                responses.append([parsed['results'], code])
+                responses.append([parsed['results'], code, key])
             except:
                 raise error.StripeError('The search for %s returned invalid JSON: %s' % (key, body))
 
@@ -143,6 +143,7 @@ class Runner(test_framework.AbstractRunner):
             'input': cmd_line_args,
             'level': self.LEVEL,
             'exitstatus': 0,
+            'keys': map(lambda x: x[2], responses),
         }
 
     def report_result(self, test_case, result):
@@ -163,6 +164,13 @@ class Runner(test_framework.AbstractRunner):
                 sorted_your = sorted(your)
 
                 if sorted_benchmark != sorted_your:
+                    util.logger.info("!!!!!!!!!!!!!!!!!!")
+                    util.logger.info(result['keys'][idx])
+                    # util.logger.info(sorted_benchmark)
+                    util.logger.info("!!!!!!!!!!!!!!!!!!")
+                    # util.logger.info(sorted_your)
+                    # util.logger.info("!!!!!!!!!!!!!!!!!!")
+
                     passed = False
                     self.log_diff("\n".join(sorted_benchmark), "\n".join(sorted_your))
 
