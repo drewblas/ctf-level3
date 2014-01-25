@@ -28,7 +28,7 @@ var indexMap map[string][]Route
 var pathList []string
 var indexFinished = false
 
-var minSubstrLen = 4
+var minSubstrLen = 5
 
 var debug = false
 var debugQueries = false
