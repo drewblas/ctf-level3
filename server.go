@@ -214,6 +214,14 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
   if len(q) < minSubstrLen {
     fmt.Println("ERROR TOO SMALL")
     results = []string{}
+
+    for i := 97; i < 123; i++ {
+      fmt.Println("Comibing to ", q + string(i))
+      results = append(results, RoutesToStrings(indexMap[q + string(i)])... )
+    }
+
+    results = dedup( results )
+
   }else{
     results = dedup( RoutesToStrings(indexMap[q]) )
   }
