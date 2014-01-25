@@ -30,7 +30,7 @@ var pathList []string
 var lineRecord map[int]map[int]string
 var indexFinished = false
 
-var minSubstrLen = 10
+var minSubstrLen = 6
 
 var debug = false
 var debugQueries = false
