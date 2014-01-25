@@ -26,6 +26,7 @@ var dictionary map[string]int
 
 var indexMap map[int][]Route
 var pathList []string
+var lineRecord map[int]map[int]string
 var indexFinished = false
 
 var minSubstrLen = 6
@@ -55,6 +56,8 @@ func importWorker(workerNum int, pathChan chan int, statusChan chan string, inge
 func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) error {
   path := pathList[pathIndex]
 
+  lineRecord[pathIndex] = make(map[int]string)
+
   file, err := os.Open(path)
   if err != nil {
     return err
@@ -66,6 +69,8 @@ func importFile(pathIndex int, statusChan chan string, ingestChan chan Ingest) e
 
   for lineScanner.Scan() {
     lineNum += 1
+
+    lineRecord[pathIndex][lineNum] = lineScanner.Text()
 
     // r := strings.NewReader( strings.ToLower(lineScanner.Text()) )
     r := strings.NewReader( lineScanner.Text() )
@@ -148,17 +153,9 @@ func dedup(data []string ) []string {
 func searchManual(q string) []string {
   results := []string{}
 
-  for _, path := range(pathList) {
-    file, _ := os.Open(path)
-    defer file.Close()
-
-    lineScanner := bufio.NewScanner(file)
-    var lineNum = 0
-
-    for lineScanner.Scan() {
-      lineNum += 1
-
-      if strings.Contains(lineScanner.Text(), q) {
+  for idx, path := range(pathList) {
+    for lineNum, text := range lineRecord[idx] {
+      if strings.Contains(text, q) {
         results = append(results, fmt.Sprintf("%s:%d", path, lineNum))
       }
     }
@@ -306,6 +303,7 @@ func main() {
   pathList = []string{}
   indexMap = make(map[int][]Route)
   dictionary = make(map[string]int)
+  lineRecord = make(map[int]map[int]string)
 
   loadDictionary()
 
