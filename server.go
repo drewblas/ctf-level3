@@ -233,6 +233,7 @@ func isIndexedHandler(w http.ResponseWriter, r *http.Request) {
   // }
 
   if debug { fmt.Printf("Indexed?: %t", indexFinished) }
+  fmt.Printf(" < Indexed?: %t > ", indexFinished)
   fmt.Fprintf(w, `{"success": %t}`, showFinished)
 }
 
